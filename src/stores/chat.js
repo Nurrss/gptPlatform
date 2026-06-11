@@ -4,9 +4,7 @@ import * as chatApi from '../api/chat'
 import { sendToAgentStream } from '../api/agents'
 import { extractScore } from '../config/teacherModes'
 import { useAuthStore } from './auth'
-import { useAgentsStore } from './agents'
 import { useModesStore } from './modes'
-import { useSettingsStore } from './settings'
 
 export const useChatStore = defineStore('chat', () => {
   const chats = ref([])
@@ -58,24 +56,14 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function sendCheckRequest() {
-    const modesStore = useModesStore()
-    const validation = modesStore.validateForm()
-    if (!validation.valid) throw new Error(validation.error)
-
-    const mode = modesStore.selectedMode
-    const prompt = modesStore.buildPrompt()
-    const title = `${mode.icon} ${mode.name}`
-
-    await sendMessage(prompt, { modeId: mode.id, title, isCheckRequest: true })
-  }
-
+  // options: { modeId, title, isCheckRequest, images, pdfs }
+  // images: [{ dataUrl, mediaType, name }]
+  // pdfs:   [{ dataUrl, name }]
   async function sendMessage(content, options = {}) {
-    const agentsStore = useAgentsStore()
     const modesStore = useModesStore()
-    const settingsStore = useSettingsStore()
 
-    if (!content.trim() || isGenerating.value) return
+    if ((!content || !content.trim()) && !options.images?.length && !options.pdfs?.length) return
+    if (isGenerating.value) return
 
     const modeId = options.modeId || modesStore.selectedModeId || currentChat.value?.modeId
     let chat = currentChat.value
@@ -89,7 +77,9 @@ export const useChatStore = defineStore('chat', () => {
 
     const userMessage = {
       role: 'user',
-      content: content.trim(),
+      content: content?.trim() || '',
+      images: options.images || [],
+      pdfs: options.pdfs || [],
       modeId,
       isCheckRequest: options.isCheckRequest || false,
     }
@@ -105,15 +95,13 @@ export const useChatStore = defineStore('chat', () => {
     chats.value[chatIdx].messages.push(assistantMessage)
 
     try {
-      const agent = agentsStore.getAgentForMode(modeId)
-      const agentConfig = settingsStore.getAgentConfig(modeId)
       const messages = chats.value[chatIdx].messages
         .filter((m) => m.id !== 'streaming')
-        .map(({ role, content: c }) => ({ role, content: c }))
+        .map(({ role, content: c, images, pdfs }) => ({ role, content: c, images, pdfs }))
 
       const result = await sendToAgentStream(
         modeId,
-        { messages, chatId: chat.id, agent, agentConfig, modeId },
+        { messages, chatId: chat.id, modeId },
         (chunk) => {
           const idx = chats.value[chatIdx].messages.findIndex((m) => m.id === 'streaming')
           if (idx !== -1) chats.value[chatIdx].messages[idx].content = chunk
@@ -130,12 +118,12 @@ export const useChatStore = defineStore('chat', () => {
       }
 
       await chatApi.addMessage(chat.id, finalMessage)
-
       const idx = chats.value[chatIdx].messages.findIndex((m) => m.id === 'streaming')
       chats.value[chatIdx].messages[idx] = finalMessage
 
-      if (options.title) chats.value[chatIdx].title = options.title
-      else {
+      if (options.title) {
+        chats.value[chatIdx].title = options.title
+      } else {
         const updated = await chatApi.getChat(chat.id)
         chats.value[chatIdx].title = updated.title
       }
@@ -175,7 +163,6 @@ export const useChatStore = defineStore('chat', () => {
     selectChat,
     deleteChatById,
     sendMessage,
-    sendCheckRequest,
     startNewCheck,
     toggleSidebar,
   }

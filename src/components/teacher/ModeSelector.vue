@@ -1,21 +1,11 @@
 <script setup>
 import { useModesStore } from '../../stores/modes'
-import { useSettingsStore } from '../../stores/settings'
 import { useI18n } from '../../i18n/index.js'
 
 const modesStore = useModesStore()
-const settingsStore = useSettingsStore()
 const { t } = useI18n()
 
 defineEmits(['select'])
-
-function modeName(mode) {
-  return t(`modes.${mode.id}.name`) || mode.name
-}
-
-function modeDesc(mode) {
-  return t(`modes.${mode.id}.desc`) || mode.description
-}
 </script>
 
 <template>
@@ -29,14 +19,9 @@ function modeDesc(mode) {
     >
       <span class="mode-icon">{{ mode.icon }}</span>
       <div class="mode-info">
-        <span class="mode-name">{{ modeName(mode) }}</span>
-        <span class="mode-desc">{{ modeDesc(mode) }}</span>
+        <span class="mode-name">{{ t(`modes.${mode.id}.name`) || mode.name }}</span>
+        <span class="mode-desc">{{ t(`modes.${mode.id}.desc`) || mode.description }}</span>
       </div>
-      <span
-        class="status-dot"
-        :class="{ configured: settingsStore.isConfigured(mode.id) }"
-        :title="settingsStore.isConfigured(mode.id) ? t('aiConnected') : t('demoMode')"
-      />
     </button>
   </div>
 </template>
@@ -60,7 +45,6 @@ function modeDesc(mode) {
   border-radius: var(--radius);
   text-align: left;
   transition: background 0.2s, border-color 0.2s, transform 0.15s;
-  position: relative;
   background: var(--bg-secondary);
 }
 
@@ -72,11 +56,7 @@ function modeDesc(mode) {
 
 .mode-icon { font-size: 32px; }
 
-.mode-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
+.mode-info { display: flex; flex-direction: column; gap: 4px; }
 
 .mode-name {
   font-size: 16px;
@@ -89,18 +69,6 @@ function modeDesc(mode) {
   color: var(--text-secondary);
   line-height: 1.4;
 }
-
-.status-dot {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text-muted);
-}
-
-.status-dot.configured { background: var(--accent); }
 
 @media (max-width: 768px) {
   .mode-selector { grid-template-columns: 1fr; }

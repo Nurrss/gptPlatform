@@ -53,35 +53,15 @@ function readAs(file, method) {
   })
 }
 
-function extractPdfText(buffer) {
-  try {
-    const latin = Array.from(new Uint8Array(buffer)).map((b) => String.fromCharCode(b)).join('')
-    const results = []
-    const btEt = /BT([\s\S]*?)ET/g
-    let m
-    while ((m = btEt.exec(latin)) !== null) {
-      const tjRe = /\(([^)\\]*(?:\\.[^)\\]*)*)\)\s*Tj/g
-      let r
-      while ((r = tjRe.exec(m[1])) !== null) {
-        const s = r[1].replace(/\\n/g, '\n').replace(/\\r/g, '').replace(/\\/g, '')
-        if (s.trim()) results.push(s)
-      }
-    }
-    return results.length ? results.join(' ').replace(/\s+/g, ' ').trim() : null
-  } catch {
-    return null
-  }
-}
-
 async function addImage(file) {
   const dataUrl = await readAs(file, 'readAsDataURL')
-  attachments.value.push({ id: crypto.randomUUID(), name: file.name, type: 'image', content: `[📸 ${file.name}]\n${dataUrl}`, preview: dataUrl })
+  attachments.value.push({ id: crypto.randomUUID(), name: file.name, type: 'image', content: '', preview: dataUrl })
 }
 
 async function addPdf(file) {
-  const buffer = await readAs(file, 'readAsArrayBuffer')
-  const text = extractPdfText(buffer) ?? `[📄 ${file.name}]`
-  attachments.value.push({ id: crypto.randomUUID(), name: file.name, type: 'pdf', content: text, preview: null })
+  // Store as base64 — Claude reads PDFs natively, no client-side extraction needed
+  const dataUrl = await readAs(file, 'readAsDataURL')
+  attachments.value.push({ id: crypto.randomUUID(), name: file.name, type: 'pdf', dataUrl, preview: null })
 }
 
 async function onImageChange(e) {
@@ -122,17 +102,29 @@ onUnmounted(() => document.removeEventListener('click', onOutsideClick, true))
 
 // ─── Submit ──────────────────────────────────────────────────
 async function submit() {
-  const textPart = input.value.trim()
-  const fileParts = attachments.value.map((a) => a.content)
-  const content = [...fileParts, textPart].filter(Boolean).join('\n\n')
-  if (!content || chat.isGenerating) return
+  const content = input.value.trim()
+
+  const images = attachments.value
+    .filter((a) => a.type === 'image')
+    .map((a) => ({
+      dataUrl: a.preview,
+      mediaType: a.preview?.match(/^data:([^;]+)/)?.[1] || 'image/jpeg',
+      name: a.name,
+    }))
+
+  const pdfs = attachments.value
+    .filter((a) => a.type === 'pdf')
+    .map((a) => ({ dataUrl: a.dataUrl, name: a.name }))
+
+  if (!content && !images.length && !pdfs.length) return
+  if (chat.isGenerating) return
 
   const modeId = modesStore.selectedModeId || chat.currentChat?.modeId || null
   input.value = ''
   attachments.value = []
   await nextTick()
   autoResize()
-  await chat.sendMessage(content, { modeId })
+  await chat.sendMessage(content, { modeId, images, pdfs })
   modesStore.clearMode()
 }
 

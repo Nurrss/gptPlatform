@@ -18,6 +18,9 @@ const htmlContent = computed(() => {
 })
 
 const mode = computed(() => getModeById(props.message.modeId))
+
+const userImages = computed(() => props.message.images || [])
+const userPdfs   = computed(() => props.message.pdfs   || [])
 </script>
 
 <template>
@@ -30,7 +33,29 @@ const mode = computed(() => getModeById(props.message.modeId))
       <div v-if="message.role === 'user' && message.isCheckRequest" class="check-label">
         {{ t('checkLabel') }}
       </div>
-      <p v-if="message.role === 'user'" class="user-text">{{ message.content }}</p>
+
+      <!-- User message -->
+      <template v-if="message.role === 'user'">
+        <!-- Attached images -->
+        <div v-if="userImages.length" class="user-images">
+          <img
+            v-for="img in userImages"
+            :key="img.dataUrl"
+            :src="img.dataUrl"
+            :alt="img.name"
+            class="user-img"
+          />
+        </div>
+        <!-- Attached PDFs -->
+        <div v-if="userPdfs.length" class="user-pdfs">
+          <span v-for="pdf in userPdfs" :key="pdf.name" class="pdf-chip">
+            <span>📄</span><span>{{ pdf.name }}</span>
+          </span>
+        </div>
+        <p v-if="message.content" class="user-text">{{ message.content }}</p>
+      </template>
+
+      <!-- Assistant message -->
       <template v-else>
         <GradeCard v-if="message.score" :score="message.score" />
         <div
@@ -77,6 +102,40 @@ const mode = computed(() => getModeById(props.message.modeId))
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.user-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.user-img {
+  max-width: 260px;
+  max-height: 200px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
+.user-pdfs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.pdf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .user-text {
