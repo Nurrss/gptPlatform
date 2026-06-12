@@ -4,14 +4,13 @@ import { useI18n } from '../../i18n/index.js'
 import { TEACHER_MODES } from '../../config/teacherModes.js'
 
 const modesStore = useModesStore()
-const { t, lang } = useI18n()
+const { t } = useI18n()
 
 const emit = defineEmits(['select-mode'])
 
 function onSelectMode(mode) {
   modesStore.selectMode(mode.id)
-  const template = mode.getInputTemplate(lang.value)
-  emit('select-mode', { modeId: mode.id, template })
+  emit('select-mode', { modeId: mode.id })
 }
 </script>
 

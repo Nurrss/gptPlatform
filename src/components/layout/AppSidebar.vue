@@ -3,21 +3,25 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useChatStore } from '../../stores/chat'
+import { useWizardStore } from '../../stores/wizard'
 import { getModeById } from '../../config/teacherModes'
 import { useI18n } from '../../i18n/index.js'
 import LangSwitcher from '../ui/LangSwitcher.vue'
 
 const auth = useAuthStore()
 const chat = useChatStore()
+const wizard = useWizardStore()
 const router = useRouter()
 const { t } = useI18n()
 
 async function newCheck() {
+  wizard.reset()
   chat.startNewCheck()
   router.push('/')
 }
 
 async function openChat(id) {
+  wizard.reset()
   await chat.selectChat(id)
   router.push(`/chat/${id}`)
 }

@@ -33,3 +33,4 @@ export function isAiConfigured() {
   if (AI_CONFIG.provider === 'anthropic') return !!AI_CONFIG.model
   return !!(AI_CONFIG.apiKey && AI_CONFIG.model)
 }
+

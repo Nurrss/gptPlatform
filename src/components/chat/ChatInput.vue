@@ -5,9 +5,9 @@ import { useModesStore } from '../../stores/modes'
 import { useI18n } from '../../i18n/index.js'
 
 const props = defineProps({
-  prefill: { type: String, default: '' },
+  wizardStep: { type: Object, default: null },
 })
-const emit = defineEmits(['consumed'])
+const emit = defineEmits(['wizard-answer'])
 
 const chat = useChatStore()
 const modesStore = useModesStore()
@@ -21,20 +21,7 @@ const imageInputRef = ref(null)
 const pdfInputRef = ref(null)
 const attachWrapperRef = ref(null)
 
-// When parent injects a template → fill textarea and consume
-watch(() => props.prefill, (val) => {
-  if (!val) return
-  input.value = val
-  emit('consumed')
-  nextTick(() => {
-    autoResize()
-    const el = textareaRef.value
-    if (el) {
-      el.focus()
-      el.selectionStart = el.selectionEnd = el.value.length
-    }
-  })
-})
+const isWizardMode = computed(() => !!props.wizardStep)
 
 function autoResize() {
   const el = textareaRef.value
@@ -101,8 +88,8 @@ onMounted(() => document.addEventListener('click', onOutsideClick, true))
 onUnmounted(() => document.removeEventListener('click', onOutsideClick, true))
 
 // ─── Submit ──────────────────────────────────────────────────
-async function submit() {
-  const content = input.value.trim()
+async function submit(overrideContent) {
+  const content = (overrideContent !== undefined ? overrideContent : input.value).trim()
 
   const images = attachments.value
     .filter((a) => a.type === 'image')
@@ -116,6 +103,18 @@ async function submit() {
     .filter((a) => a.type === 'pdf')
     .map((a) => ({ dataUrl: a.dataUrl, name: a.name }))
 
+  if (isWizardMode.value) {
+    // In wizard mode we allow empty text if there are files (or allow skip for optional)
+    const isSkip = !content && !images.length && !pdfs.length
+    if (isSkip && !props.wizardStep?.optional) return
+    input.value = ''
+    attachments.value = []
+    await nextTick()
+    autoResize()
+    emit('wizard-answer', { content, images, pdfs })
+    return
+  }
+
   if (!content && !images.length && !pdfs.length) return
   if (chat.isGenerating) return
 
@@ -126,6 +125,14 @@ async function submit() {
   autoResize()
   await chat.sendMessage(content, { modeId, images, pdfs })
   modesStore.clearMode()
+}
+
+function selectChip(chip) {
+  emit('wizard-answer', { content: chip, images: [], pdfs: [] })
+}
+
+function skipOptional() {
+  emit('wizard-answer', { content: '', images: [], pdfs: [] })
 }
 
 function onKeydown(e) {
@@ -142,6 +149,18 @@ watch(input, autoResize)
 
 <template>
   <div class="chat-input-wrapper">
+    <!-- Wizard subject chips -->
+    <div v-if="wizardStep?.inputType === 'chips'" class="chips-row">
+      <button
+        v-for="chip in wizardStep.chips"
+        :key="chip"
+        class="subject-chip"
+        @click="selectChip(chip)"
+      >
+        {{ chip }}
+      </button>
+    </div>
+
     <!-- Attached files -->
     <div v-if="attachments.length" class="attachment-row">
       <div v-for="att in attachments" :key="att.id" class="att-chip">
@@ -153,8 +172,8 @@ watch(input, autoResize)
     </div>
 
     <div class="input-row">
-      <!-- + Attach button -->
-      <div ref="attachWrapperRef" class="attach-wrapper">
+      <!-- + Attach button (shown for file steps and normal mode) -->
+      <div v-if="!wizardStep || wizardStep.inputType === 'text+file'" ref="attachWrapperRef" class="attach-wrapper">
         <button
           class="attach-btn"
           :disabled="chat.isGenerating"
@@ -176,8 +195,8 @@ watch(input, autoResize)
         </div>
       </div>
 
-      <!-- Textarea -->
-      <div class="textarea-box" :class="{ focused: true }">
+      <!-- Textarea (hidden for chips-only step) -->
+      <div v-if="wizardStep?.inputType !== 'chips'" class="textarea-box">
         <textarea
           ref="textareaRef"
           v-model="input"
@@ -189,12 +208,22 @@ watch(input, autoResize)
         />
       </div>
 
-      <!-- Send button -->
+      <!-- Skip button for optional steps -->
       <button
+        v-if="wizardStep?.optional"
+        class="skip-btn"
+        @click="skipOptional"
+      >
+        {{ t('skip') }}
+      </button>
+
+      <!-- Send button (hidden for chips-only step) -->
+      <button
+        v-if="wizardStep?.inputType !== 'chips'"
         class="send-btn"
-        :disabled="!hasContent || chat.isGenerating"
+        :disabled="(!hasContent && !wizardStep?.optional) || chat.isGenerating"
         :title="t('check')"
-        @click="submit"
+        @click="submit()"
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
           <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
@@ -373,6 +402,53 @@ textarea:focus { outline: none; }
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .hidden-input { display: none; }
+
+/* Wizard chips */
+.chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 768px;
+  margin: 0 auto 10px;
+}
+
+.subject-chip {
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.subject-chip:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+/* Skip button */
+.skip-btn {
+  flex-shrink: 0;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.skip-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
 
 .hint {
   text-align: center;

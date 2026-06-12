@@ -31,6 +31,7 @@ const translations = {
     checkLabel: 'Запрос на проверку',
     attachFile: 'Прикрепить файл',
     selectFormat: 'Выберите тип проверки',
+    skip: 'Пропустить',
     modes: {
       essay: {
         name: 'Проверка эссе',
@@ -92,6 +93,7 @@ const translations = {
     checkLabel: 'Тексеру сұранысы',
     attachFile: 'Файл тіркеу',
     selectFormat: 'Тексеру түрін таңдаңыз',
+    skip: 'Өткізу',
     modes: {
       essay: {
         name: 'Эссе тексеру',
@@ -153,6 +155,7 @@ const translations = {
     checkLabel: 'Check request',
     attachFile: 'Attach file',
     selectFormat: 'Select check type',
+    skip: 'Skip',
     modes: {
       essay: {
         name: 'Essay Check',

@@ -3,6 +3,7 @@ import { onMounted, watch, ref, nextTick, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useChatStore } from '../stores/chat'
 import { useModesStore } from '../stores/modes'
+import { useWizardStore } from '../stores/wizard'
 import { getModeById } from '../config/teacherModes'
 import { useI18n } from '../i18n/index.js'
 import AppSidebar from '../components/layout/AppSidebar.vue'
@@ -13,39 +14,55 @@ import ChatInput from '../components/chat/ChatInput.vue'
 const route = useRoute()
 const chat = useChatStore()
 const modesStore = useModesStore()
-const { t } = useI18n()
+const wizard = useWizardStore()
+const { t, lang } = useI18n()
 const messagesEnd = ref(null)
 
-// Template text to inject into ChatInput when a mode card is clicked
-const pendingTemplate = ref('')
-
 const currentMode = computed(() => {
-  const modeId = chat.currentChat?.modeId || modesStore.selectedModeId
+  const modeId = wizard.active ? wizard.modeId : (chat.currentChat?.modeId || modesStore.selectedModeId)
   return getModeById(modeId)
 })
 
-const showWelcome = computed(() => !chat.currentChat?.messages?.length)
+const showWelcome = computed(() => !wizard.active && !chat.currentChat?.messages?.length)
 
-function onSelectMode({ template }) {
-  pendingTemplate.value = template
+// Prefer real chat messages once they exist, otherwise show wizard messages
+const displayMessages = computed(() => {
+  const chatMsgs = chat.currentChat?.messages
+  if (chatMsgs?.length) return chatMsgs
+  if (wizard.active) return wizard.messages
+  return []
+})
+
+function onSelectMode({ modeId }) {
+  wizard.startWizard(modeId, lang.value)
 }
 
-function onTemplateConsumed() {
-  pendingTemplate.value = ''
+async function onWizardAnswer({ content, images, pdfs }) {
+  wizard.answerStep(content, images, pdfs)
+
+  if (wizard.isComplete) {
+    const { prompt, images: finalImages, pdfs: finalPdfs } = wizard.buildFinalPayload()
+    const mId = wizard.modeId
+    wizard.reset()
+    await chat.sendMessage(prompt, { modeId: mId, images: finalImages, pdfs: finalPdfs })
+    modesStore.clearMode()
+  }
 }
+
+// Reset wizard when navigating away or starting new check
+watch(() => route.params.id, async (id) => {
+  wizard.reset()
+  if (id) await chat.selectChat(id)
+  else if (route.name === 'chat') chat.currentChatId = null
+})
 
 onMounted(async () => {
   await chat.loadChats()
   if (route.params.id) await chat.selectChat(route.params.id)
 })
 
-watch(() => route.params.id, async (id) => {
-  if (id) await chat.selectChat(id)
-  else if (route.name === 'chat') chat.currentChatId = null
-})
-
 watch(
-  () => chat.currentChat?.messages?.length,
+  () => displayMessages.value?.length,
   async () => {
     await nextTick()
     messagesEnd.value?.scrollIntoView({ behavior: 'smooth' })
@@ -77,7 +94,7 @@ watch(
         <ChatWelcome v-if="showWelcome" @select-mode="onSelectMode" />
         <div v-else class="messages-list">
           <ChatMessage
-            v-for="msg in chat.currentChat?.messages || []"
+            v-for="msg in displayMessages"
             :key="msg.id || msg.createdAt"
             :message="msg"
           />
@@ -90,7 +107,10 @@ watch(
       </div>
 
       <!-- Always visible chat input -->
-      <ChatInput :prefill="pendingTemplate" @consumed="onTemplateConsumed" />
+      <ChatInput
+        :wizard-step="wizard.currentStep"
+        @wizard-answer="onWizardAnswer"
+      />
     </main>
   </div>
 </template>
