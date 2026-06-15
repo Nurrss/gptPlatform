@@ -13,7 +13,7 @@ defineProps({
           <path d="M12 2L2 7l10 5 10-5-10-5z" fill="#10a37f"/>
           <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="#10a37f" stroke-width="2" stroke-linecap="round"/>
         </svg>
-        <span>Teacher AI</span>
+        <span>Tezcheck</span>
       </div>
       <h1>{{ title }}</h1>
       <p v-if="subtitle" class="subtitle">{{ subtitle }}</p>

@@ -87,7 +87,7 @@ watch(
           <span>{{ currentMode.icon }}</span>
           <span>{{ t(`modes.${currentMode.id}.name`) || currentMode.name }}</span>
         </div>
-        <span v-else class="header-title">Teacher AI</span>
+        <span v-else class="header-title">Tezcheck</span>
       </header>
 
       <div class="messages-area">
